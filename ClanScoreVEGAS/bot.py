@@ -58,7 +58,7 @@ class ClanSelectDropdown(discord.ui.Select):
     def __init__(self, clans_data):
         options = []
         if not clans_data:
-            options.append(discord.SelectOption(label="ยังไม่มีแคลนในระบบ", value="no_clan", description="กรุณาสร้างแคลนก่อน"))
+            options.append(discord.SelectOption(label="ยังไม่มีรูปในระบบ", value="no_clan", description="กรุณาสร้างรูปก่อน"))
         else:
             for c_name, c_count in clans_data:
                 label_name = c_name[:100]
@@ -68,11 +68,11 @@ class ClanSelectDropdown(discord.ui.Select):
                     emoji="🛡️",
                     value=c_name
                 ))
-        super().__init__(placeholder="เลือก................", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="เลือกดูรูปภาพ", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "no_clan":
-            await interaction.response.send_message("❌ ยังไม่มีแคลนในระบบ", ephemeral=True)
+            await interaction.response.send_message("❌ ยังไม่มีรูปในระบบ", ephemeral=True)
             return
 
         selected_clan = self.values[0]
