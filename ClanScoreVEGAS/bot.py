@@ -61,7 +61,6 @@ class ClanSelectDropdown(discord.ui.Select):
             options.append(discord.SelectOption(label="ยังไม่มีแคลนในระบบ", value="no_clan", description="กรุณาสร้างแคลนก่อน"))
         else:
             for c_name, c_count in clans_data:
-                # ตัดข้อความชื่อแคลนไม่ให้เกิน 100 ตัวอักษรตามเงื่อนไข Discord
                 label_name = c_name[:100]
                 options.append(discord.SelectOption(
                     label=label_name, 
@@ -69,7 +68,7 @@ class ClanSelectDropdown(discord.ui.Select):
                     emoji="🛡️",
                     value=c_name
                 ))
-        super().__init__(placeholder="🔽 เลือกแคลนที่ต้องการดูรูปภาพสกอร์...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="เลือก................", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "no_clan":
@@ -86,6 +85,8 @@ class ClanSelectDropdown(discord.ui.Select):
 
         view = ClanImageView(images, selected_clan)
         embed = view.create_embed()
+        
+        # ส่งรูปภาพพร้อมปุ่ม และแจ้งให้ผู้ใช้ทราบว่าสามารถเลือกแคลนจากเมนูด้านบนซ้ำได้อีกครั้ง
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 class ClanSelectView(discord.ui.View):
@@ -135,18 +136,33 @@ async def update_display_panel(guild: discord.Guild):
             except Exception:
                 pass
 
-# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ พร้อมปุ่มดาวน์โหลด ====================
+# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ พร้อมปุ่มดาวน์โหลดไฟล์ตรง ====================
 class ClanImageView(discord.ui.View):
     def __init__(self, images, clan_name):
         super().__init__(timeout=180)
         self.images = images
         self.clan_name = clan_name
         self.current_page = 0
-        self.update_buttons()
+        self.update_components()
 
-    def update_buttons(self):
-        self.prev_button.disabled = self.current_page == 0
-        self.next_button.disabled = self.current_page == len(self.images) - 1
+    def update_components(self):
+        # เคลียร์ปุ่มเก่าทั้งหมดออกก่อนสร้างใหม่
+        self.clear_items()
+        
+        # สร้างปุ่มย้อนกลับ
+        prev_btn = discord.ui.Button(label="◀️ ก่อนหน้า", style=discord.ButtonStyle.blurple, disabled=(self.current_page == 0))
+        prev_btn.callback = self.prev_callback
+        self.add_item(prev_btn)
+
+        # สร้างปุ่มถัดไป
+        next_btn = discord.ui.Button(label="ถัดไป ▶️", style=discord.ButtonStyle.blurple, disabled=(self.current_page == len(self.images) - 1))
+        next_btn.callback = self.next_callback
+        self.add_item(next_btn)
+
+        # สร้างปุ่มดาวน์โหลดรูปภาพแบบลิงก์ตรง (กดแล้วดาวน์โหลดลงเครื่องทันที)
+        img_id, img_url, uploader_id = self.images[self.current_page]
+        download_btn = discord.ui.Button(label="📥 โหลดรูปภาพ", style=discord.ButtonStyle.link, url=img_url)
+        self.add_item(download_btn)
 
     def create_embed(self):
         img_id, img_url, uploader_id = self.images[self.current_page]
@@ -158,24 +174,17 @@ class ClanImageView(discord.ui.View):
         embed.set_image(url=img_url)
         return embed
 
-    @discord.ui.button(label="◀️ ก่อนหน้า", style=discord.ButtonStyle.blurple, custom_id="prev_img")
-    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_callback(self, interaction: discord.Interaction):
         if self.current_page > 0:
             self.current_page -= 1
-            self.update_buttons()
+            self.update_components()
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
 
-    @discord.ui.button(label="ถัดไป ▶️", style=discord.ButtonStyle.blurple, custom_id="next_img")
-    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_callback(self, interaction: discord.Interaction):
         if self.current_page < len(self.images) - 1:
             self.current_page += 1
-            self.update_buttons()
+            self.update_components()
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
-
-    @discord.ui.button(label="📥 โหลดรูปภาพ", style=discord.ButtonStyle.green, custom_id="download_img")
-    async def download_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        img_id, img_url, uploader_id = self.images[self.current_page]
-        await interaction.response.send_message(f"📥 **ลิงก์ดาวน์โหลดรูปภาพนี้:**\n{img_url}", ephemeral=True)
 
 # ==================== 3. คำสั่งหลักของบอท ====================
 
@@ -260,7 +269,7 @@ async def display_panel_cmd(interaction: discord.Interaction):
 
     await interaction.followup.send("✅ สร้างแผงแสดงผลรวมพร้อมเมนูดรอปดาวน์เรียบร้อยแล้ว!", ephemeral=True)
 
-@bot.tree.command(name="ลบรูปภาพ", description="ลบรูปภาพเดี่ยวๆ ออกจากระบบ (ดูรหัสรูปได้จากหน้าเช็ครูป)")
+@bot.tree.command(name="ลบรูปภาพ", description="ลบรูปภาพเดี่ยวๆ ออกจากระบบ (ดูรหัสรูปได้จากหน้าดูรูปภาพ)")
 @app_commands.describe(รหัสรูป="ใส่ ID ของรูปภาพที่ต้องการลบ")
 async def delete_image(interaction: discord.Interaction, รหัสรูป: int):
     cursor.execute("SELECT clan_name, uploader_id FROM clan_images WHERE id = ?", (รหัสรูป,))
