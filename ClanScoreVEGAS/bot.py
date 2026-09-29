@@ -53,6 +53,46 @@ async def on_ready():
     except Exception as e:
         print(e)
 
+# ==================== เมนูดรอปดาวน์เลือกแคลนสำหรับหน้าแสดงผลรวม ====================
+class ClanSelectDropdown(discord.ui.Select):
+    def __init__(self, clans_data):
+        options = []
+        if not clans_data:
+            options.append(discord.SelectOption(label="ยังไม่มีแคลนในระบบ", value="no_clan", description="กรุณาสร้างแคลนก่อน"))
+        else:
+            for c_name, c_count in clans_data:
+                # ตัดข้อความชื่อแคลนไม่ให้เกิน 100 ตัวอักษรตามเงื่อนไข Discord
+                label_name = c_name[:100]
+                options.append(discord.SelectOption(
+                    label=label_name, 
+                    description=f"มีรูปภาพสะสม {c_count} รูป", 
+                    emoji="🛡️",
+                    value=c_name
+                ))
+        super().__init__(placeholder="🔽 เลือกแคลนที่ต้องการดูรูปภาพสกอร์...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "no_clan":
+            await interaction.response.send_message("❌ ยังไม่มีแคลนในระบบ", ephemeral=True)
+            return
+
+        selected_clan = self.values[0]
+        cursor.execute("SELECT id, image_url, uploader_id FROM clan_images WHERE clan_name = ?", (selected_clan,))
+        images = cursor.fetchall()
+
+        if not images:
+            await interaction.response.send_message(f"❌ ยังไม่มีรูปภาพสกอร์ของแคลน `{selected_clan}` ในระบบ", ephemeral=True)
+            return
+
+        view = ClanImageView(images, selected_clan)
+        embed = view.create_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+class ClanSelectView(discord.ui.View):
+    def __init__(self, clans_data):
+        super().__init__(timeout=None)
+        self.add_item(ClanSelectDropdown(clans_data))
+
 # ==================== ฟังก์ชันสร้างและอัปเดต Embed สรุปภาพรวมแบบเรียลไทม์ ====================
 async def update_display_panel(guild: discord.Guild):
     cursor.execute("""
@@ -63,7 +103,6 @@ async def update_display_panel(guild: discord.Guild):
     """)
     clans_data = cursor.fetchall()
 
-    # สร้าง Embed พร้อมเปลี่ยนข้อความตามที่ต้องการ
     embed = discord.Embed(
         title="🏆 รวมสกอร์ Vegas",
         description="VegasRank1",
@@ -80,7 +119,8 @@ async def update_display_panel(guild: discord.Guild):
 
     embed.set_footer(text="💡 ใช้คำสั่ง /เพิ่มรูป หรือ /สร้างสกอแคลน เพื่ออัปเดตข้อมูล")
 
-    # ค้นหาว่ามีการตั้งค่าห้องแสดงผลไว้หรือยัง
+    view = ClanSelectView(clans_data)
+
     cursor.execute("SELECT channel_id, message_id FROM display_panel WHERE id = 1")
     panel = cursor.fetchone()
 
@@ -90,12 +130,12 @@ async def update_display_panel(guild: discord.Guild):
         if channel:
             try:
                 message = await channel.fetch_message(message_id)
-                await message.edit(embed=embed)
+                await message.edit(embed=embed, view=view)
                 return
             except Exception:
-                pass # ถ้าหาข้อความไม่พบ ให้สร้างใหม่ด้านล่าง
+                pass
 
-# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ (Pagination) ====================
+# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ พร้อมปุ่มดาวน์โหลด ====================
 class ClanImageView(discord.ui.View):
     def __init__(self, images, clan_name):
         super().__init__(timeout=180)
@@ -132,6 +172,11 @@ class ClanImageView(discord.ui.View):
             self.update_buttons()
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
 
+    @discord.ui.button(label="📥 โหลดรูปภาพ", style=discord.ButtonStyle.green, custom_id="download_img")
+    async def download_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        img_id, img_url, uploader_id = self.images[self.current_page]
+        await interaction.response.send_message(f"📥 **ลิงก์ดาวน์โหลดรูปภาพนี้:**\n{img_url}", ephemeral=True)
+
 # ==================== 3. คำสั่งหลักของบอท ====================
 
 @bot.tree.command(name="สร้างสกอแคลน", description="[แอดมิน] สร้างชื่อหัวข้อแคลนใหม่เพื่อเก็บรูปสกอร์")
@@ -149,10 +194,9 @@ async def create_clan(interaction: discord.Interaction, ชื่อแคลน
     cursor.execute("INSERT INTO clans (clan_name, creator_id) VALUES (?, ?)", (ชื่อแคลน, interaction.user.id))
     db.commit()
 
-    # อัปเดตแผงแสดงผลรวมแบบเรียลไทม์ทันที
     await update_display_panel(interaction.guild)
 
-    await interaction.response.send_message(f"✅ สร้างหัวข้อสกอร์แคลน `{ชื่อแคลน}` สำเร็จแล้ว! (ระบบอัปเดตหน้าจอเรียลไทม์ให้แล้ว)", ephemeral=True)
+    await interaction.response.send_message(f"✅ สร้างหัวข้อสกอร์แคลน `{ชื่อแคลน}` สำเร็จแล้ว! (อัปเดตหน้าจอเรียลไทม์ให้แล้ว)", ephemeral=True)
 
 @bot.tree.command(name="เพิ่มรูป", description="อัปโหลดและบันทึกรูปภาพสกอร์การแข่งเข้าไปในแคลน")
 @app_commands.describe(ชื่อแคลน="เลือกหรือพิมพ์ชื่อแคลน", รูปภาพ="แนบไฟล์รูปภาพสกอร์")
@@ -170,26 +214,11 @@ async def add_image(interaction: discord.Interaction, ชื่อแคลน: 
                    (ชื่อแคลน, รูปภาพ.url, interaction.user.id))
     db.commit()
 
-    # อัปเดตแผงแสดงผลรวมแบบเรียลไทม์ทันที
     await update_display_panel(interaction.guild)
 
     await interaction.response.send_message(f"✅ บันทึกรูปภาพสกอร์ของแคลน `{ชื่อแคลน}` เรียบร้อยแล้ว!", ephemeral=True)
 
-@bot.tree.command(name="เช็ครูป", description="เรียกดูรูปภาพสกอร์ทั้งหมดของแคลนที่ต้องการ")
-@app_commands.describe(ชื่อแคลน="ระบุชื่อแคลนที่ต้องการดูรูป")
-async def check_images(interaction: discord.Interaction, ชื่อแคลน: str):
-    cursor.execute("SELECT id, image_url, uploader_id FROM clan_images WHERE clan_name = ?", (ชื่อแคลน,))
-    images = cursor.fetchall()
-
-    if not images:
-        await interaction.response.send_message(f"❌ ยังไม่มีรูปภาพสกอร์ของแคลน `{ชื่อแคลน}` ในระบบ", ephemeral=True)
-        return
-
-    view = ClanImageView(images, ชื่อแคลน)
-    embed = view.create_embed()
-    await interaction.response.send_message(embed=embed, view=view)
-
-@bot.tree.command(name="แสดงผลรวม", description="[แอดมิน] สร้างหน้าต่างแสดงรายชื่อแคลนและจำนวนรูปภาพแบบเรียลไทม์ในห้องนี้")
+@bot.tree.command(name="แสดงผลรวม", description="[แอดมิน] สร้างหน้าต่างแสดงรายชื่อแคลนและเมนูดรอปดาวน์เลือกดูรูปภาพแบบเรียลไทม์ในห้องนี้")
 async def display_panel_cmd(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้ (เฉพาะแอดมิน)", ephemeral=True)
@@ -221,17 +250,17 @@ async def display_panel_cmd(interaction: discord.Interaction):
 
     embed.set_footer(text="💡 ใช้คำสั่ง /เพิ่มรูป หรือ /สร้างสกอแคลน เพื่ออัปเดตข้อมูล")
 
-    # ส่งข้อความลงในห้องที่ใช้คำสั่ง
-    message = await interaction.channel.send(embed=embed)
+    view = ClanSelectView(clans_data)
 
-    # บันทึกตำแหน่งข้อความนี้ลงในฐานข้อมูล เพื่อให้บอทวิ่งมาแก้ข้อความนี้อัตโนมัติเวลาข้อมูลเปลี่ยน
+    message = await interaction.channel.send(embed=embed, view=view)
+
     cursor.execute("REPLACE INTO display_panel (id, channel_id, message_id) VALUES (1, ?, ?)", 
                    (interaction.channel.id, message.id))
     db.commit()
 
-    await interaction.followup.send("✅ สร้างแผงแสดงผลรวมแบบเรียลไทม์ในห้องนี้เรียบร้อยแล้ว!", ephemeral=True)
+    await interaction.followup.send("✅ สร้างแผงแสดงผลรวมพร้อมเมนูดรอปดาวน์เรียบร้อยแล้ว!", ephemeral=True)
 
-@bot.tree.command(name="ลบรูปภาพ", description="ลบรูปภาพเดี่ยวๆ ออกจากระบบ (ดูรหัสรูปได้จากคำสั่ง /เช็ครูป)")
+@bot.tree.command(name="ลบรูปภาพ", description="ลบรูปภาพเดี่ยวๆ ออกจากระบบ (ดูรหัสรูปได้จากหน้าเช็ครูป)")
 @app_commands.describe(รหัสรูป="ใส่ ID ของรูปภาพที่ต้องการลบ")
 async def delete_image(interaction: discord.Interaction, รหัสรูป: int):
     cursor.execute("SELECT clan_name, uploader_id FROM clan_images WHERE id = ?", (รหัสรูป,))
@@ -250,7 +279,6 @@ async def delete_image(interaction: discord.Interaction, รหัสรูป: 
     cursor.execute("DELETE FROM clan_images WHERE id = ?", (รหัสรูป,))
     db.commit()
 
-    # อัปเดตแผงแสดงผลรวมแบบเรียลไทม์ทันที
     await update_display_panel(interaction.guild)
 
     await interaction.response.send_message(f"✅ ลบรูปภาพรหัส ID `{รหัสรูป}` ของแคลน `{clan_name}` เรียบร้อยแล้ว! (อัปเดตผลรวมให้แล้ว)", ephemeral=True)
@@ -271,7 +299,6 @@ async def delete_clan(interaction: discord.Interaction, ชื่อแคลน
     cursor.execute("DELETE FROM clans WHERE clan_name = ?", (ชื่อแคลน,))
     db.commit()
 
-    # อัปเดตแผงแสดงผลรวมแบบเรียลไทม์ทันที
     await update_display_panel(interaction.guild)
 
     await interaction.response.send_message(f"✅ ลบแคลน `{ชื่อแคลน}` เรียบร้อยแล้ว! (อัปเดตผลรวมให้แล้ว)", ephemeral=True)
