@@ -86,7 +86,6 @@ class ClanSelectDropdown(discord.ui.Select):
         view = ClanImageView(images, selected_clan)
         embed = view.create_embed()
         
-        # ส่งรูปภาพพร้อมปุ่ม และแจ้งให้ผู้ใช้ทราบว่าสามารถเลือกแคลนจากเมนูด้านบนซ้ำได้อีกครั้ง
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 class ClanSelectView(discord.ui.View):
@@ -136,7 +135,7 @@ async def update_display_panel(guild: discord.Guild):
             except Exception:
                 pass
 
-# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ พร้อมปุ่มดาวน์โหลดไฟล์ตรง ====================
+# ==================== 2. ระบบ UI ปุ่มกดเลื่อนดูรูปภาพ (เอาปุ่มโหลดออกแล้ว) ====================
 class ClanImageView(discord.ui.View):
     def __init__(self, images, clan_name):
         super().__init__(timeout=180)
@@ -146,7 +145,6 @@ class ClanImageView(discord.ui.View):
         self.update_components()
 
     def update_components(self):
-        # เคลียร์ปุ่มเก่าทั้งหมดออกก่อนสร้างใหม่
         self.clear_items()
         
         # สร้างปุ่มย้อนกลับ
@@ -158,11 +156,6 @@ class ClanImageView(discord.ui.View):
         next_btn = discord.ui.Button(label="ถัดไป ▶️", style=discord.ButtonStyle.blurple, disabled=(self.current_page == len(self.images) - 1))
         next_btn.callback = self.next_callback
         self.add_item(next_btn)
-
-        # สร้างปุ่มดาวน์โหลดรูปภาพแบบลิงก์ตรง (กดแล้วดาวน์โหลดลงเครื่องทันที)
-        img_id, img_url, uploader_id = self.images[self.current_page]
-        download_btn = discord.ui.Button(label="📥 โหลดรูปภาพ", style=discord.ButtonStyle.link, url=img_url)
-        self.add_item(download_btn)
 
     def create_embed(self):
         img_id, img_url, uploader_id = self.images[self.current_page]
