@@ -65,8 +65,8 @@ async def update_display_panel(guild: discord.Guild):
 
     # สร้าง Embed สวยงามหรูหรา
     embed = discord.Embed(
-        title="🏆 ระบบบันทึกสกอร์และรูปภาพแคลน",
-        description="📊 **สรุปรายชื่อแคลนและจำนวนรูปภาพสะสมทั้งหมดในระบบ**\n*(ข้อมูลจะอัปเดตแบบเรียลไทม์อัตโนมัติ)*",
+        title="🏆 ระบบบันทึกสกอร์สตาร์เวกัส",
+        description="📊 **สรุปรายชื่อแคลนและจำนวนรูปภาพสะสมทั้งหมดในระบบ**\n*(n/a)*",
         color=discord.Color.gold()
     )
 
