@@ -131,17 +131,23 @@ async def check_images(interaction: discord.Interaction, ชื่อแคล�
     embed = view.create_embed()
     await interaction.response.send_message(embed=embed, view=view)
 
-@bot.tree.command(name="รายชื่อแคลน", description="ตรวจสอบดูว่าในระบบมีบันทึกชื่อแคลนอะไรไว้บ้าง")
+@bot.tree.command(name="รายชื่อแคลน", description="ตรวจสอบรายชื่อแคลนทั้งหมดและจำนวนรูปภาพในแต่ละแคลน")
 async def list_clans(interaction: discord.Interaction):
-    cursor.execute("SELECT clan_name FROM clans")
-    clans = cursor.fetchall()
+    # ดึงรายชื่อแคลน พร้อมนับจำนวนรูปภาพที่มีในแต่ละแคลน
+    cursor.execute("""
+        SELECT c.clan_name, COUNT(i.id) 
+        FROM clans c 
+        LEFT JOIN clan_images i ON c.clan_name = i.clan_name 
+        GROUP BY c.clan_name
+    """)
+    clans_data = cursor.fetchall()
 
-    if not clans:
+    if not clans_data:
         await interaction.response.send_message("❌ ยังไม่มีการสร้างชื่อแคลนใดๆ ในระบบ", ephemeral=True)
         return
 
-    clan_list = "\n".join([f"• `{c[0]}`" for c in clans])
-    embed = discord.Embed(title="📋 รายชื่อแคลนทั้งหมดในระบบ", description=clan_list, color=discord.Color.blue())
+    clan_list = "\n".join([f"• **{c[0]}** — มีรูปภาพสะสมอยู่ `{c[1]}` รูป" for c in clans_data])
+    embed = discord.Embed(title="📋 รายชื่อแคลนและจำนวนรูปภาพทั้งหมด", description=clan_list, color=discord.Color.blue())
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="ลบรูปภาพ", description="ลบรูปภาพเดี่ยวๆ ออกจากระบบ (ดูรหัสรูปได้จากคำสั่ง /เช็ครูป)")
@@ -156,7 +162,6 @@ async def delete_image(interaction: discord.Interaction, รหัสรูป: 
 
     clan_name, uploader_id = result
 
-    # อนุญาตให้คนที่ส่งรูปนั้น หรือ แอดมิน ลบรูปได้
     if interaction.user.id != uploader_id and not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ คุณสามารถลบได้เฉพาะรูปที่คุณเป็นคนอัปโหลดเท่านั้น (ยกเว้นแอดมิน)", ephemeral=True)
         return
@@ -178,7 +183,6 @@ async def delete_clan(interaction: discord.Interaction, ชื่อแคลน
         await interaction.response.send_message(f"❌ ไม่พบชื่อแคลน `{ชื่อแคลน}` ในระบบ", ephemeral=True)
         return
 
-    # ลบข้อมูลแคลนและรูปภาพทั้งหมดที่ผูกอยู่
     cursor.execute("DELETE FROM clan_images WHERE clan_name = ?", (ชื่อแคลน,))
     cursor.execute("DELETE FROM clans WHERE clan_name = ?", (ชื่อแคลน,))
     db.commit()
