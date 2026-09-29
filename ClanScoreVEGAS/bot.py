@@ -63,10 +63,10 @@ async def update_display_panel(guild: discord.Guild):
     """)
     clans_data = cursor.fetchall()
 
-    # สร้าง Embed สวยงามหรูหรา
+    # สร้าง Embed พร้อมเปลี่ยนข้อความตามที่ต้องการ
     embed = discord.Embed(
-        title="🏆 ระบบบันทึกสกอร์สตาร์เวกัส",
-        description="📊 **สรุปรายชื่อแคลนและจำนวนรูปภาพสะสมทั้งหมดในระบบ**\n*(n/a)*",
+        title="🏆 รวมสกอร์ Vegas",
+        description="VegasRank1",
         color=discord.Color.gold()
     )
 
@@ -206,8 +206,8 @@ async def display_panel_cmd(interaction: discord.Interaction):
     clans_data = cursor.fetchall()
 
     embed = discord.Embed(
-        title="🏆 ระบบบันทึกสกอร์และรูปภาพแคลน",
-        description="📊 **สรุปรายชื่อแคลนและจำนวนรูปภาพสะสมทั้งหมดในระบบ**\n*(ข้อมูลจะอัปเดตแบบเรียลไทม์อัตโนมัติ)*",
+        title="🏆 รวมสกอร์ Vegas",
+        description="VegasRank1",
         color=discord.Color.gold()
     )
 
